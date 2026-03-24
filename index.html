@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Desvíos de Despacho</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root {
+    --azul: #185FA5;
+    --azul-claro: #E6F1FB;
+    --rojo: #E24B4A;
+    --rojo-claro: #FCEBEB;
+    --naranja: #D85A30;
+    --naranja-claro: #FAECE7;
+    --amarillo: #BA7517;
+    --amarillo-claro: #FAEEDA;
+    --verde: #1D9E75;
+    --verde-claro: #E1F5EE;
+    --gris: #5F5E5A;
+    --gris-claro: #F1EFE8;
+    --borde: #D3D1C7;
+    --texto: #2C2C2A;
+    --texto-sec: #5F5E5A;
+    --bg: #F1EFE8;
+    --white: #FFFFFF;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--texto); min-height: 100vh; }
+
+  .topbar { background: var(--white); border-bottom: 1px solid var(--borde); padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+  .topbar-title { font-size: 16px; font-weight: 600; color: var(--texto); }
+  .topbar-sub { font-size: 11px; color: var(--texto-sec); margin-top: 1px; }
+  .mode-switch { display: flex; gap: 3px; background: var(--bg); border-radius: 8px; padding: 3px; }
+  .mode-btn { padding: 6px 14px; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; color: var(--texto-sec); background: transparent; font-weight: 400; transition: all .15s; }
+  .mode-btn.active { background: var(--white); color: var(--texto); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+
+  .container { max-width: 600px; margin: 0 auto; padding: 16px; }
+
+  .card { background: var(--white); border-radius: 12px; border: 1px solid var(--borde); padding: 16px; margin-bottom: 12px; }
+
+  .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+  .field:last-child { margin-bottom: 0; }
+  .field label { font-size: 11px; font-weight: 600; color: var(--texto-sec); text-transform: uppercase; letter-spacing: .05em; }
+  .field input, .field select, .field textarea {
+    font-size: 16px; padding: 10px 12px;
+    border: 1.5px solid var(--borde); border-radius: 8px;
+    background: var(--white); color: var(--texto); width: 100%;
+    -webkit-appearance: none; appearance: none;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--azul); }
+  .field textarea { min-height: 72px; resize: vertical; font-family: inherit; }
+
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .tipo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .tipo-btn {
+    padding: 12px 8px; border: 1.5px solid var(--borde); border-radius: 8px;
+    background: var(--white); color: var(--texto-sec); font-size: 13px;
+    cursor: pointer; text-align: center; font-family: inherit; transition: all .15s;
+  }
+  .tipo-btn.sel-exc { background: var(--naranja-claro); border-color: var(--naranja); color: #712B13; font-weight: 600; }
+  .tipo-btn.sel-fal { background: var(--rojo-claro); border-color: var(--rojo); color: #791F1F; font-weight: 600; }
+  .tipo-btn.sel-pro { background: var(--amarillo-claro); border-color: var(--amarillo); color: #633806; font-weight: 600; }
+  .tipo-btn.sel-otr { background: var(--verde-claro); border-color: var(--verde); color: #085041; font-weight: 600; }
+
+  .btn-primary {
+    width: 100%; padding: 14px; background: var(--azul); color: var(--azul-claro);
+    border: none; border-radius: 10px; font-size: 16px; font-weight: 600;
+    cursor: pointer; font-family: inherit; transition: opacity .15s;
+  }
+  .btn-primary:active { opacity: .8; }
+  .btn-primary:disabled { background: var(--gris); cursor: not-allowed; }
+
+  .btn-sec {
+    padding: 8px 16px; background: var(--white); color: var(--texto-sec);
+    border: 1px solid var(--borde); border-radius: 8px; font-size: 13px;
+    cursor: pointer; font-family: inherit;
+  }
+
+  .status { text-align: center; padding: 10px 16px; font-size: 13px; color: var(--texto-sec); min-height: 36px; }
+  .status.ok { color: #0F6E56; font-weight: 500; }
+  .status.err { color: #A32D2D; font-weight: 500; }
+  .status.loading { color: var(--azul); }
+
+  .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+  .stat-card { background: var(--white); border: 1px solid var(--borde); border-radius: 10px; padding: 12px 8px; text-align: center; }
+  .stat-num { font-size: 24px; font-weight: 700; }
+  .stat-lbl { font-size: 11px; color: var(--texto-sec); margin-top: 2px; }
+
+  .sec-title { font-size: 12px; font-weight: 600; color: var(--texto-sec); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 10px; }
+
+  .chart-wrap { position: relative; width: 100%; height: 200px; }
+
+  .filter-row { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+  .filter-row select { flex: 1; font-size: 14px; padding: 8px 10px; border: 1px solid var(--borde); border-radius: 8px; background: var(--white); color: var(--texto); -webkit-appearance: none; }
+
+  .reg-item { border: 1px solid var(--borde); border-radius: 10px; padding: 11px 13px; margin-bottom: 8px; background: var(--white); }
+  .reg-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 3px; gap: 8px; }
+  .reg-cliente { font-size: 14px; font-weight: 600; color: var(--texto); }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 99px; white-space: nowrap; flex-shrink: 0; }
+  .b-exc { background: var(--naranja-claro); color: #712B13; }
+  .b-fal { background: var(--rojo-claro); color: #791F1F; }
+  .b-pro { background: var(--amarillo-claro); color: #633806; }
+  .b-otr { background: var(--verde-claro); color: #085041; }
+  .reg-det { font-size: 13px; color: var(--texto-sec); margin-bottom: 2px; }
+  .reg-meta { font-size: 11px; color: #888780; }
+
+  .empty { text-align: center; padding: 2.5rem 1rem; color: #888780; font-size: 14px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 8px; }
+  .leg-item { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--texto-sec); }
+  .leg-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: #0F6E56; color: #E1F5EE; padding: 11px 22px;
+    border-radius: 10px; font-size: 14px; font-weight: 500;
+    opacity: 0; transition: opacity .2s; pointer-events: none;
+    white-space: nowrap; z-index: 999;
+  }
+  .toast.show { opacity: 1; }
+
+  @media (max-width: 400px) {
+    .stat-grid { grid-template-columns: repeat(2, 1fr); }
+    .stat-num { font-size: 20px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <div class="topbar-title">Desvíos de despacho</div>
+    <div class="topbar-sub" id="fecha-hoy"></div>
+  </div>
+  <div class="mode-switch">
+    <button class="mode-btn active" id="btn-carga" onclick="setMode('carga')">Cargar</button>
+    <button class="mode-btn" id="btn-panel" onclick="setMode('panel')">Panel</button>
+  </div>
+</div>
+
+<div id="status-bar" class="status loading">Cargando datos...</div>
+
+<!-- ── VISTA CARGA ── -->
+<div id="view-carga" class="container">
+  <div class="card">
+    <div class="row2">
+      <div class="field"><label>Camión / Ruta</label><input id="f-camion" placeholder="Ej: C3" autocomplete="off"></div>
+      <div class="field"><label>Controlador</label><input id="f-ctrl" placeholder="Nombre" autocomplete="off"></div>
+    </div>
+    <div class="field"><label>Cliente</label><input id="f-cliente" placeholder="Nombre del cliente" autocomplete="off"></div>
+    <div class="field">
+      <label>Tipo de desvío</label>
+      <div class="tipo-grid">
+        <button class="tipo-btn" id="tb-exc" onclick="selTipo('Exceso','tb-exc','sel-exc')">Exceso</button>
+        <button class="tipo-btn" id="tb-fal" onclick="selTipo('Faltante','tb-fal','sel-fal')">Faltante</button>
+        <button class="tipo-btn" id="tb-pro" onclick="selTipo('Producto incorrecto','tb-pro','sel-pro')">Producto incorrecto</button>
+        <button class="tipo-btn" id="tb-otr" onclick="selTipo('Otro','tb-otr','sel-otr')">Otro</button>
+      </div>
+    </div>
+    <div class="field"><label>Producto</label><input id="f-prod" placeholder="Descripción" autocomplete="off"></div>
+    <div class="row2">
+      <div class="field"><label>Cant. remito</label><input type="number" id="f-remito" placeholder="0" min="0" inputmode="numeric"></div>
+      <div class="field"><label>Cant. despachada</label><input type="number" id="f-real" placeholder="0" min="0" inputmode="numeric"></div>
+    </div>
+    <div class="field"><label>Observaciones</label><textarea id="f-obs" placeholder="Opcional"></textarea></div>
+    <button class="btn-primary" id="btn-guardar" onclick="guardar()">Registrar desvío</button>
+  </div>
+</div>
+
+<!-- ── VISTA PANEL ── -->
+<div id="view-panel" class="container" style="display:none">
+  <div class="stat-grid">
+    <div class="stat-card"><div class="stat-num" id="s-total">—</div><div class="stat-lbl">Total</div></div>
+    <div class="stat-card"><div class="stat-num" id="s-fal" style="color:#A32D2D">—</div><div class="stat-lbl">Faltantes</div></div>
+    <div class="stat-card"><div class="stat-num" id="s-exc" style="color:#712B13">—</div><div class="stat-lbl">Excesos</div></div>
+    <div class="stat-card"><div class="stat-num" id="s-pro" style="color:#633806">—</div><div class="stat-lbl">Prod. incorrecto</div></div>
+  </div>
+
+  <div class="card">
+    <div class="sec-title">Desvíos por día — mes actual</div>
+    <div class="chart-wrap"><canvas id="chart-dias"></canvas></div>
+  </div>
+
+  <div class="card">
+    <div class="sec-title">Por tipo — mes actual</div>
+    <div class="legend">
+      <span class="leg-item"><span class="leg-dot" style="background:#D85A30"></span>Exceso</span>
+      <span class="leg-item"><span class="leg-dot" style="background:#E24B4A"></span>Faltante</span>
+      <span class="leg-item"><span class="leg-dot" style="background:#BA7517"></span>Prod. incorrecto</span>
+      <span class="leg-item"><span class="leg-dot" style="background:#1D9E75"></span>Otro</span>
+    </div>
+    <div class="chart-wrap" style="height:170px"><canvas id="chart-tipos"></canvas></div>
+  </div>
+
+  <div class="card">
+    <div class="filter-row">
+      <select id="fil-mes" onchange="renderPanel()"></select>
+      <button class="btn-sec" onclick="exportarCSV()">Exportar CSV</button>
+    </div>
+    <div id="lista-panel"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = 'https://script.google.com/macros/s/AKfycbw2tPJ4MuwYhWCjmUW2qEH9m7ULStqbXS6Kekttsgn5CxtYTZbzXUpl4mvvzrCQWj-V/exec';
+var tipoSel = '';
+var todosReg = [];
+var chartDias = null;
+var chartTipos = null;
+
+document.getElementById('fecha-hoy').textContent = new Date().toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long'});
+
+async function cargarDatos() {
+  setStatus('Cargando datos...','loading');
+  try {
+    var r = await fetch(API + '?t=' + Date.now());
+    var d = await r.json();
+    todosReg = (d.data || []).filter(function(x){ return x['Fecha']; });
+    var hoy = todosReg.filter(function(x){ return x['Fecha'] === hoyStr(); }).length;
+    setStatus('Listo — ' + todosReg.length + ' registros totales · ' + hoy + ' hoy','ok');
+  } catch(e) {
+    setStatus('Error al conectar con la base de datos','err');
+  }
+}
+
+function hoyStr() {
+  return new Date().toISOString().slice(0,10);
+}
+
+function setStatus(msg, cls) {
+  var el = document.getElementById('status-bar');
+  el.textContent = msg;
+  el.className = 'status' + (cls ? ' ' + cls : '');
+}
+
+function selTipo(tipo, id, cls) {
+  document.querySelectorAll('.tipo-btn').forEach(function(b){ b.className = 'tipo-btn'; });
+  document.getElementById(id).classList.add(cls);
+  tipoSel = tipo;
+}
+
+async function guardar() {
+  var camion = document.getElementById('f-camion').value.trim();
+  var ctrl = document.getElementById('f-ctrl').value.trim();
+  var cliente = document.getElementById('f-cliente').value.trim();
+  var prod = document.getElementById('f-prod').value.trim();
+  var remito = document.getElementById('f-remito').value;
+  var real = document.getElementById('f-real').value;
+  var obs = document.getElementById('f-obs').value.trim();
+
+  if (!camion || !cliente || !tipoSel || !prod) {
+    setStatus('Completá camión, cliente, tipo y producto','err');
+    return;
+  }
+
+  var now = new Date();
+  var dif = (remito !== '' && real !== '') ? (parseInt(real) - parseInt(remito)) : '';
+
+  var payload = {
+    fecha: hoyStr(),
+    hora: now.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}),
+    camion: camion,
+    controlador: ctrl,
+    cliente: cliente,
+    tipo: tipoSel,
+    producto: prod,
+    cantRemito: remito,
+    cantReal: real,
+    diferencia: dif,
+    obs: obs
+  };
+
+  var btn = document.getElementById('btn-guardar');
+  btn.disabled = true;
+  btn.textContent = 'Guardando...';
+  setStatus('Enviando a la base de datos...','loading');
+
+  try {
+    await fetch(API, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    todosReg.push({
+      'Fecha': payload.fecha, 'Hora': payload.hora, 'Camión': payload.camion,
+      'Controlador': payload.controlador, 'Cliente': payload.cliente,
+      'Tipo': payload.tipo, 'Producto': payload.producto,
+      'Cant Remito': payload.cantRemito, 'Cant Despachada': payload.cantReal,
+      'Diferencia': payload.diferencia, 'Observaciones': payload.obs
+    });
+    document.getElementById('f-cliente').value = '';
+    document.getElementById('f-prod').value = '';
+    document.getElementById('f-remito').value = '';
+    document.getElementById('f-real').value = '';
+    document.getElementById('f-obs').value = '';
+    document.querySelectorAll('.tipo-btn').forEach(function(b){ b.className = 'tipo-btn'; });
+    tipoSel = '';
+    var hoy = todosReg.filter(function(x){ return x['Fecha'] === hoyStr(); }).length;
+    setStatus('Registrado — ' + hoy + ' desvío' + (hoy!==1?'s':'') + ' hoy','ok');
+    showToast('Desvío registrado');
+  } catch(e) {
+    setStatus('Error al guardar — revisá la conexión','err');
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Registrar desvío';
+}
+
+function setMode(m) {
+  document.getElementById('view-carga').style.display = m === 'carga' ? '' : 'none';
+  document.getElementById('view-panel').style.display = m === 'panel' ? '' : 'none';
+  document.getElementById('btn-carga').classList.toggle('active', m === 'carga');
+  document.getElementById('btn-panel').classList.toggle('active', m === 'panel');
+  if (m === 'panel') renderPanel();
+}
+
+function getMeses() {
+  var meses = {};
+  todosReg.forEach(function(r){ var m = (r['Fecha']||'').slice(0,7); if(m) meses[m]=true; });
+  var arr = Object.keys(meses).sort().reverse();
+  var hoy = hoyStr().slice(0,7);
+  if (!meses[hoy]) arr.unshift(hoy);
+  return arr;
+}
+
+function mesLabel(m) {
+  return new Date(m+'-01').toLocaleDateString('es-AR',{month:'long',year:'numeric'});
+}
+
+function renderPanel() {
+  var fil = document.getElementById('fil-mes');
+  var meses = getMeses();
+  var selMes = fil.value || meses[0] || hoyStr().slice(0,7);
+  fil.innerHTML = meses.map(function(m){
+    return '<option value="'+m+'"'+(m===selMes?' selected':'')+'>'+mesLabel(m)+'</option>';
+  }).join('');
+
+  var regMes = todosReg.filter(function(r){ return (r['Fecha']||'').slice(0,7) === selMes; });
+
+  document.getElementById('s-total').textContent = todosReg.length;
+  document.getElementById('s-fal').textContent = todosReg.filter(function(r){return r['Tipo']==='Faltante';}).length;
+  document.getElementById('s-exc').textContent = todosReg.filter(function(r){return r['Tipo']==='Exceso';}).length;
+  document.getElementById('s-pro').textContent = todosReg.filter(function(r){return r['Tipo']==='Producto incorrecto';}).length;
+
+  renderChartDias(selMes);
+  renderChartTipos(regMes);
+  renderLista(regMes);
+}
+
+function renderChartDias(mes) {
+  var diasEnMes = new Date(parseInt(mes.slice(0,4)), parseInt(mes.slice(5,7)), 0).getDate();
+  var labels = [], data = [];
+  for (var d = 1; d <= diasEnMes; d++) {
+    var key = mes + '-' + String(d).padStart(2,'0');
+    labels.push(d);
+    data.push(todosReg.filter(function(r){return r['Fecha']===key;}).length);
+  }
+  if (chartDias) chartDias.destroy();
+  chartDias = new Chart(document.getElementById('chart-dias'), {
+    type:'bar',
+    data:{labels:labels, datasets:[{data:data, backgroundColor:'#378ADD', borderRadius:3, borderSkipped:false}]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{ticks:{font:{size:10},color:'#888780'},grid:{display:false}},
+        y:{ticks:{font:{size:10},color:'#888780',stepSize:1},grid:{color:'rgba(0,0,0,.06)'},beginAtZero:true}
+      }
+    }
+  });
+}
+
+function renderChartTipos(regs) {
+  var tipos = ['Exceso','Faltante','Producto incorrecto','Otro'];
+  var colores = ['#D85A30','#E24B4A','#BA7517','#1D9E75'];
+  var data = tipos.map(function(t){ return regs.filter(function(r){return r['Tipo']===t;}).length; });
+  if (chartTipos) chartTipos.destroy();
+  chartTipos = new Chart(document.getElementById('chart-tipos'), {
+    type:'doughnut',
+    data:{labels:tipos, datasets:[{data:data, backgroundColor:colores, borderWidth:0}]},
+    options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, cutout:'60%'}
+  });
+}
+
+function badgeClass(tipo) {
+  return {Exceso:'b-exc',Faltante:'b-fal','Producto incorrecto':'b-pro',Otro:'b-otr'}[tipo]||'b-otr';
+}
+
+function renderLista(regs) {
+  var el = document.getElementById('lista-panel');
+  if (!regs.length) { el.innerHTML = '<div class="empty">Sin desvíos en este período</div>'; return; }
+  var sorted = regs.slice().sort(function(a,b){ return (b['Fecha']+b['Hora']).localeCompare(a['Fecha']+a['Hora']); });
+  el.innerHTML = sorted.map(function(r){
+    var dif = r['Diferencia'] !== '' && r['Diferencia'] !== undefined ? ' ('+(r['Diferencia']>0?'+':'')+r['Diferencia']+')' : '';
+    return '<div class="reg-item">'+
+      '<div class="reg-top"><span class="reg-cliente">'+r['Cliente']+'</span><span class="badge '+badgeClass(r['Tipo'])+'">'+r['Tipo']+'</span></div>'+
+      '<div class="reg-det">'+r['Producto']+(r['Cant Remito']?(' — remito: '+r['Cant Remito']+' / desp: '+r['Cant Despachada']+dif):'')+'</div>'+
+      (r['Observaciones']?'<div class="reg-det">'+r['Observaciones']+'</div>':'')+
+      '<div class="reg-meta">'+r['Fecha']+' '+r['Hora']+' · Camión '+r['Camión']+(r['Controlador']?' · '+r['Controlador']:'')+'</div>'+
+    '</div>';
+  }).join('');
+}
+
+function exportarCSV() {
+  var fil = document.getElementById('fil-mes');
+  var mes = fil.value;
+  var regs = todosReg.filter(function(r){ return (r['Fecha']||'').slice(0,7) === mes; });
+  if (!regs.length) { setStatus('Sin datos para exportar','err'); return; }
+  var cols = ['Fecha','Hora','Camión','Controlador','Cliente','Tipo','Producto','Cant Remito','Cant Despachada','Diferencia','Observaciones'];
+  var csv = cols.join(',') + '\n' + regs.map(function(r){
+    return cols.map(function(c){ return '"'+((r[c]||'').toString().replace(/"/g,'""'))+'"'; }).join(',');
+  }).join('\n');
+  var blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'desvios_'+mes+'.csv';
+  a.click();
+  setStatus('CSV exportado','ok');
+}
+
+function showToast(msg) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(function(){ t.classList.remove('show'); }, 2500);
+}
+
+cargarDatos();
+</script>
+</body>
+</html>
